@@ -801,38 +801,54 @@ async function loadSignals() {
 
 loadSignals();
 
-// ── NOTES with localStorage persistence
-const DEFAULT_NOTES = [
-  { text: 'VAA 攻擊型出現防禦資產，但雙動能依舊以 VOO/VXUS 為主', date: '2026-03-01' },
-  { text: '眼睛閉著乖乖做多，全力看多中，狂飆狀態', date: '2026-03-01' },
-  { text: '右方所有標的近一個月報酬全是正的，有可能頭部已到', date: '2026-03-01' },
-  { text: '上個月大修正後彈起又往下，接近五月底或許是新機會', date: '2026-03-01' },
-  { text: '資料來源改用 Python + yfinance 自動更新', date: '2026-03-01' },
-];
+// ── NOTES: archive (notes.json) + user additions & deletion tombstones (localStorage)
+const USER_KEY    = 'usdn_notes_user';
+const DELETED_KEY = 'usdn_notes_deleted';
 
-function loadNotes() {
+let archiveNotes = [];   // [{ date, text }] from notes.json
+let showHistory  = false;
+
+function loadUser() {
+  try { return JSON.parse(localStorage.getItem(USER_KEY) || '[]'); } catch { return []; }
+}
+function saveUser(arr) { localStorage.setItem(USER_KEY, JSON.stringify(arr)); }
+
+function loadDeleted() {
+  try { return new Set(JSON.parse(localStorage.getItem(DELETED_KEY) || '[]')); } catch { return new Set(); }
+}
+function saveDeleted(set) { localStorage.setItem(DELETED_KEY, JSON.stringify([...set])); }
+
+function mergedNotes() {
+  const deleted = loadDeleted();
+  const arch = archiveNotes
+    .map((n, i) => ({ ...n, id: `a:${i}`, source: 'archive' }))
+    .filter(n => !deleted.has(n.id));
+  const user = loadUser().map(n => ({ ...n, source: 'user' }));
+  // user additions first (newest on top), archive after — group-by-month handles ordering
+  return [...user, ...arch];
+}
+
+async function loadArchive() {
   try {
-    const saved = localStorage.getItem('usdn_notes');
-    return saved ? JSON.parse(saved) : DEFAULT_NOTES;
-  } catch { return DEFAULT_NOTES; }
+    const res = await fetch('notes.json?t=' + Date.now());
+    if (res.ok) archiveNotes = await res.json();
+  } catch (e) {
+    console.warn('load notes.json failed:', e);
+  }
+  renderNotes();
 }
-function saveNotes(notes) {
-  localStorage.setItem('usdn_notes', JSON.stringify(notes));
-}
-
-let showHistory = false;
 
 function renderNotes() {
-  const notes = loadNotes();
+  const notes = mergedNotes();
   const list = document.getElementById('notes-list');
   list.innerHTML = '';
 
   // Group by YYYY-MM
   const groups = {};
-  notes.forEach((note, i) => {
+  notes.forEach(note => {
     const month = (note.date || '').slice(0, 7) || '未知日期';
     if (!groups[month]) groups[month] = [];
-    groups[month].push({ ...note, originalIndex: i });
+    groups[month].push(note);
   });
 
   const sortedMonths = Object.keys(groups).sort((a, b) => b.localeCompare(a));
@@ -868,7 +884,7 @@ function renderNotes() {
       const li = document.createElement('li');
       li.innerHTML = `
         <span class="note-text">${note.text}</span>
-        <button class="note-delete" title="刪除" data-index="${note.originalIndex}">×</button>
+        <button class="note-delete" title="刪除" data-id="${note.id}">×</button>
       `;
       ul.appendChild(li);
     });
@@ -910,9 +926,15 @@ function renderNotes() {
   // delete handlers
   list.querySelectorAll('.note-delete').forEach(btn => {
     btn.addEventListener('click', () => {
-      const notes = loadNotes();
-      notes.splice(parseInt(btn.dataset.index), 1);
-      saveNotes(notes);
+      const id = btn.dataset.id;
+      if (id.startsWith('a:')) {
+        const deleted = loadDeleted();
+        deleted.add(id);
+        saveDeleted(deleted);
+      } else {
+        const user = loadUser().filter(n => n.id !== id);
+        saveUser(user);
+      }
       renderNotes();
     });
   });
@@ -922,10 +944,11 @@ function addNote() {
   const input = document.getElementById('note-input');
   const text = input.value.trim();
   if (!text) return;
-  const notes = loadNotes();
+  const user = loadUser();
   const today = new Date().toISOString().slice(0, 10);
-  notes.unshift({ text, date: today });
-  saveNotes(notes);
+  const id = `u:${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  user.unshift({ id, text, date: today });
+  saveUser(user);
   input.value = '';
   renderNotes();
   // flash feedback
@@ -938,7 +961,7 @@ document.getElementById('note-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') addNote();
 });
 
-renderNotes();
+loadArchive();
 
 // hover effect on resource links
 document.querySelectorAll('a[href]').forEach(a => {
