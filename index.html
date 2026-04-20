@@ -361,24 +361,22 @@
   .notes-list li {
     font-size: 12px;
     color: var(--text-muted);
-    padding: 7px 0 7px 14px;
+    padding: 6px 0;
     border-bottom: 1px solid rgba(30,45,66,0.4);
-    position: relative;
     line-height: 1.5;
     display: flex;
     align-items: flex-start;
-    justify-content: space-between;
-    gap: 8px;
+    gap: 10px;
     transition: background 0.15s;
   }
   .notes-list li:hover { background: rgba(255,255,255,0.02); border-radius: 4px; }
   .notes-list li:last-child { border-bottom: none; }
-  .notes-list li::before {
-    content: '›';
-    position: absolute;
-    left: 0;
-    top: 7px;
+  .note-date {
+    flex-shrink: 0;
+    font-size: 11px;
     color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+    min-width: 34px;
   }
   .note-text { flex: 1; }
   .note-delete {
@@ -440,38 +438,7 @@
     display: block;
   }
 
-  /* month group */
-  .note-month-group { margin-bottom: 4px; }
-  .note-month-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 6px 0 5px;
-    cursor: pointer;
-    user-select: none;
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 2px;
-  }
-  .note-month-header:hover .note-month-label { color: var(--text); }
-  .note-month-label {
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    font-family: 'JetBrains Mono', monospace;
-    color: var(--text-dim);
-    transition: color 0.15s;
-  }
-  .note-month-toggle {
-    font-size: 10px;
-    color: var(--text-dim);
-    transition: transform 0.2s;
-  }
-  .note-month-toggle.open { transform: rotate(90deg); }
-  .note-month-body { overflow: hidden; transition: max-height 0.25s ease; }
-  .note-month-body.collapsed { max-height: 0 !important; }
-
-  /* history toggle */
+  /* show more / less */
   .notes-history-btn {
     width: 100%;
     background: none;
@@ -838,84 +805,40 @@ async function loadArchive() {
   renderNotes();
 }
 
+const INITIAL_VISIBLE = 8;
+
 function renderNotes() {
-  const notes = mergedNotes();
+  const notes = mergedNotes().slice().sort((a, b) =>
+    (b.date || '').localeCompare(a.date || '')
+  );
   const list = document.getElementById('notes-list');
   list.innerHTML = '';
 
-  // Group by YYYY-MM
-  const groups = {};
-  notes.forEach(note => {
-    const month = (note.date || '').slice(0, 7) || '未知日期';
-    if (!groups[month]) groups[month] = [];
-    groups[month].push(note);
-  });
+  const visibleCount = showHistory ? notes.length : Math.min(INITIAL_VISIBLE, notes.length);
+  const ul = document.createElement('ul');
+  ul.className = 'notes-list notes-flat';
 
-  const sortedMonths = Object.keys(groups).sort((a, b) => b.localeCompare(a));
-  const latestMonth = sortedMonths[0];
-
-  sortedMonths.forEach((month, gIdx) => {
-    const isLatest = month === latestMonth;
-    const shouldShow = isLatest || showHistory;
-    if (!shouldShow) return;
-
-    const groupDiv = document.createElement('div');
-    groupDiv.className = 'note-month-group';
-
-    // header (collapsible)
-    const header = document.createElement('div');
-    header.className = 'note-month-header';
-    const [y, m] = month.split('-');
-    const label = y && m ? `${y} 年 ${parseInt(m)} 月` : month;
-    header.innerHTML = `
-      <span class="note-month-label">${label}${isLatest ? ' · 本期' : ''}</span>
-      <span class="note-month-toggle open">›</span>
+  for (let i = 0; i < visibleCount; i++) {
+    const note = notes[i];
+    const li = document.createElement('li');
+    const d = (note.date || '').slice(5).replace('-', '/');
+    li.innerHTML = `
+      <span class="note-date">${d}</span>
+      <span class="note-text">${note.text}</span>
+      <button class="note-delete" title="刪除" data-id="${note.id}">×</button>
     `;
-    groupDiv.appendChild(header);
+    ul.appendChild(li);
+  }
+  list.appendChild(ul);
 
-    // body
-    const body = document.createElement('div');
-    body.className = 'note-month-body';
-
-    const ul = document.createElement('ul');
-    ul.className = 'notes-list';
-
-    groups[month].forEach(note => {
-      const li = document.createElement('li');
-      li.innerHTML = `
-        <span class="note-text">${note.text}</span>
-        <button class="note-delete" title="刪除" data-id="${note.id}">×</button>
-      `;
-      ul.appendChild(li);
-    });
-    body.appendChild(ul);
-    body.style.maxHeight = body.scrollHeight + 200 + 'px';
-    groupDiv.appendChild(body);
-    list.appendChild(groupDiv);
-
-    // toggle collapse
-    header.addEventListener('click', () => {
-      const toggle = header.querySelector('.note-month-toggle');
-      if (body.classList.contains('collapsed')) {
-        body.classList.remove('collapsed');
-        body.style.maxHeight = body.scrollHeight + 200 + 'px';
-        toggle.classList.add('open');
-      } else {
-        body.style.maxHeight = body.scrollHeight + 'px';
-        requestAnimationFrame(() => { body.classList.add('collapsed'); });
-        toggle.classList.remove('open');
-      }
-    });
-  });
-
-  // history toggle button
+  // show more / less
+  const hiddenCount = notes.length - visibleCount;
   const histBtn = document.createElement('button');
   histBtn.className = 'notes-history-btn';
-  const histCount = sortedMonths.length - 1;
-  if (histCount > 0) {
+  if (notes.length > INITIAL_VISIBLE) {
     histBtn.textContent = showHistory
-      ? '▲ 隱藏歷史記錄'
-      : `▾ 查看歷史記錄（${histCount} 個月）`;
+      ? '▲ 收合'
+      : `▾ 顯示更多（還有 ${hiddenCount} 條）`;
     histBtn.addEventListener('click', () => {
       showHistory = !showHistory;
       renderNotes();
