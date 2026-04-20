@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>動能資產配置</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #080c14;
+    --surface: #0e1420;
+    --surface2: #141b2a;
+    --border: #1e2d42;
+    --border2: #243247;
+    --text: #c9d6e8;
+    --text-dim: #5a7090;
+    --text-muted: #8aa0bb;
+    --accent: #00c9a0;
+    --accent-dim: rgba(0,201,160,0.12);
+    --accent2: #4a9eff;
+    --accent2-dim: rgba(74,158,255,0.1);
+    --pos: #34d399;
+    --neg: #f87171;
+    --pos-dim: rgba(52,211,153,0.12);
+    --neg-dim: rgba(248,113,113,0.12);
+    --warn: #fbbf24;
+    --warn-dim: rgba(251,191,36,0.1);
+  }
+
+  body {
+    font-family: 'Space Grotesk', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 32px 24px 64px;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 40px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .header-left h1 {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: #e8f0ff;
+  }
+  .header-left p {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 4px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .update-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent-dim);
+    border: 1px solid rgba(0,201,160,0.25);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent);
+  }
+  .update-badge::before {
+    content: '';
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+  .update-badge.stale { background: var(--warn-dim); border-color: rgba(251,191,36,0.3); color: var(--warn); }
+  .update-badge.stale::before { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+  .update-badge.error { background: var(--neg-dim); border-color: rgba(248,113,113,0.3); color: var(--neg); }
+  .update-badge.error::before { background: var(--neg); box-shadow: 0 0 8px var(--neg); }
+
+  .manual-update-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--accent-dim);
+    border: 1px solid rgba(0,201,160,0.3);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  }
+  .manual-update-btn:hover {
+    background: rgba(0,201,160,0.2);
+    border-color: rgba(0,201,160,0.5);
+  }
+  .manual-update-btn:active { transform: translateY(1px); }
+
+  .data-msg {
+    grid-column: 1 / -1;
+    padding: 16px 20px;
+    border: 1px dashed var(--border2);
+    border-radius: 10px;
+    font-size: 13px;
+    color: var(--text-muted);
+    text-align: center;
+    background: rgba(255,255,255,0.01);
+  }
+  .data-msg.error { border-color: rgba(248,113,113,0.3); color: var(--neg); }
+
+  /* ── LAYOUT ── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+  @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
+
+  /* ── SECTION LABEL ── */
+  .section-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+  }
+
+  /* ── STRATEGY CARDS ── */
+  .strategies-section { grid-column: 1 / -1; }
+  .strategies-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 1100px) { .strategies-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 700px) { .strategies-grid { grid-template-columns: repeat(2, 1fr); } }
+
+  .strategy-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 16px;
+    transition: border-color 0.2s, background 0.2s;
+    cursor: default;
+    position: relative;
+    overflow: hidden;
+  }
+  .strategy-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .strategy-card:hover { border-color: var(--border2); background: var(--surface2); }
+  .strategy-card:hover::before { opacity: 1; }
+
+  .strategy-card .name {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    line-height: 1.4;
+    min-height: 30px;
+  }
+  .strategy-card .pick-label {
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 4px;
+  }
+  .strategy-card .pick {
+    font-size: 32px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--accent);
+    letter-spacing: -1px;
+  }
+  .strategy-card .mode-badge {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .mode-attack { background: var(--pos-dim); color: var(--pos); }
+  .mode-defense { background: var(--neg-dim); color: var(--neg); }
+  .mode-intl { background: var(--accent-dim); color: var(--accent); }
+  .mode-bond { background: var(--warn-dim); color: var(--warn); }
+
+  /* assets row */
+  .asset-dots {
+    display: flex;
+    gap: 4px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  .asset-dot {
+    font-size: 9px;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: var(--surface2);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+  }
+  .asset-dot.active {
+    background: var(--accent-dim);
+    color: var(--accent);
+    border-color: rgba(0,201,160,0.3);
+  }
+
+  /* ── MOMENTUM TABLE (加速雙動能) ── */
+  .momentum-section {}
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #d0ddf0;
+    margin-bottom: 4px;
+  }
+  .card-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 18px;
+  }
+
+  .momentum-table { width: 100%; border-collapse: collapse; }
+  .momentum-table th {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    text-align: right;
+    padding: 0 8px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .momentum-table th:first-child { text-align: left; }
+  .momentum-table td {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 10px 8px;
+    text-align: right;
+    border-bottom: 1px solid rgba(30,45,66,0.5);
+    color: var(--text);
+  }
+  .momentum-table td:first-child {
+    text-align: left;
+    font-size: 13px;
+    font-weight: 600;
+    color: #d0ddf0;
+  }
+  .momentum-table tr:last-child td { border-bottom: none; }
+  .momentum-table tr.winner td { background: rgba(0,201,160,0.04); }
+  .momentum-table tr.winner td:first-child { color: var(--accent); }
+
+  .pos { color: var(--pos); }
+  .neg { color: var(--neg); }
+  .dim { color: var(--text-dim); }
+
+  /* score bar */
+  .score-cell { position: relative; }
+  .score-val {
+    position: relative;
+    z-index: 1;
+  }
+  .score-bar-bg {
+    position: absolute;
+    right: 0; top: 50%;
+    transform: translateY(-50%);
+    height: 24px;
+    border-radius: 3px;
+    background: var(--accent-dim);
+    transition: width 0.5s ease;
+  }
+
+  /* ── VAA SECTION ── */
+  .vaa-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .vaa-sub-title {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .vaa-attack { color: var(--pos); }
+  .vaa-defense { color: var(--text-dim); }
+
+  .vaa-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(30,45,66,0.5);
+  }
+  .vaa-item:last-child { border-bottom: none; }
+  .vaa-ticker {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .vaa-ticker.winner { color: var(--accent); }
+  .vaa-score {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+  }
+
+  .vaa-result-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 14px;
+    padding: 10px 12px;
+    background: var(--pos-dim);
+    border: 1px solid rgba(52,211,153,0.2);
+    border-radius: 8px;
+  }
+  .vaa-result-label { font-size: 11px; color: var(--pos); font-weight: 600; }
+  .vaa-result-pick {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  /* ── NOTES ── */
+  .notes-list { list-style: none; }
+  .notes-list li {
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 7px 0 7px 14px;
+    border-bottom: 1px solid rgba(30,45,66,0.4);
+    position: relative;
+    line-height: 1.5;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    transition: background 0.15s;
+  }
+  .notes-list li:hover { background: rgba(255,255,255,0.02); border-radius: 4px; }
+  .notes-list li:last-child { border-bottom: none; }
+  .notes-list li::before {
+    content: '›';
+    position: absolute;
+    left: 0;
+    top: 7px;
+    color: var(--text-dim);
+  }
+  .note-text { flex: 1; }
+  .note-delete {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: 14px;
+    line-height: 1;
+    padding: 0 2px;
+    opacity: 0;
+    transition: opacity 0.15s, color 0.15s;
+  }
+  .notes-list li:hover .note-delete { opacity: 1; }
+  .note-delete:hover { color: var(--neg); }
+
+  /* add note input */
+  .note-add-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .note-input {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 12px;
+    font-family: 'Space Grotesk', sans-serif;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .note-input::placeholder { color: var(--text-dim); }
+  .note-input:focus { border-color: var(--accent); }
+  .note-add-btn {
+    background: var(--accent-dim);
+    border: 1px solid rgba(0,201,160,0.3);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif;
+    transition: background 0.15s, border-color 0.15s;
+    white-space: nowrap;
+  }
+  .note-add-btn:hover { background: rgba(0,201,160,0.2); border-color: rgba(0,201,160,0.5); }
+
+  /* note date tag */
+  .note-date {
+    font-size: 9px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-dim);
+    margin-top: 2px;
+    display: block;
+  }
+
+  /* month group */
+  .note-month-group { margin-bottom: 4px; }
+  .note-month-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0 5px;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2px;
+  }
+  .note-month-header:hover .note-month-label { color: var(--text); }
+  .note-month-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-dim);
+    transition: color 0.15s;
+  }
+  .note-month-toggle {
+    font-size: 10px;
+    color: var(--text-dim);
+    transition: transform 0.2s;
+  }
+  .note-month-toggle.open { transform: rotate(90deg); }
+  .note-month-body { overflow: hidden; transition: max-height 0.25s ease; }
+  .note-month-body.collapsed { max-height: 0 !important; }
+
+  /* history toggle */
+  .notes-history-btn {
+    width: 100%;
+    background: none;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    padding: 7px;
+    font-size: 11px;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-family: 'Space Grotesk', sans-serif;
+    margin-top: 10px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .notes-history-btn:hover { color: var(--text); border-color: var(--border2); }
+
+  /* ── PRINCIPLE ── */
+  .principle-list { list-style: none; }
+  .principle-list li {
+    display: flex;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(30,45,66,0.4);
+  }
+  .principle-list li:last-child { border-bottom: none; }
+  .principle-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 18px;
+    margin-top: 1px;
+  }
+  .principle-text { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+  /* sparkline bar */
+  .bar-wrap { display: flex; align-items: center; gap: 6px; }
+  .mini-bar {
+    height: 4px;
+    border-radius: 2px;
+    min-width: 2px;
+    display: inline-block;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>動能資產配置</h1>
+    <p>Momentum Asset Allocation · py 自動更新版</p>
+  </div>
+  <div class="header-right">
+    <div class="update-badge" id="update-badge">loading…</div>
+    <a class="manual-update-btn"
+       href="https://github.com/mp781237/dualmon/actions/workflows/update.yml"
+       target="_blank" rel="noopener"
+       title="開啟 GitHub Actions 手動觸發更新">↻ 手動更新</a>
+  </div>
+</div>
+
+<div class="main-grid" style="max-width:1280px;margin:0 auto;">
+
+  <!-- ── STRATEGIES ROW ── -->
+  <div class="strategies-section">
+    <div class="section-label">本期策略建議</div>
+    <div class="strategies-grid" id="strategies-grid">
+      <div class="data-msg">載入中…</div>
+    </div>
+  </div>
+
+  <!-- ── 加速雙動能 DETAIL ── -->
+  <div class="momentum-section">
+    <div class="section-label">動能分數明細</div>
+    <div class="card">
+      <div class="card-title" id="momentum-title">加速雙動能 · 騷速雙動能</div>
+      <div class="card-sub" id="momentum-sub">分數 = avg(1m, 3m, 6m)</div>
+      <table class="momentum-table">
+        <thead>
+          <tr>
+            <th>標的</th>
+            <th>1 月</th>
+            <th>3 月</th>
+            <th>6 月</th>
+            <th>12 月</th>
+            <th>動能分數</th>
+          </tr>
+        </thead>
+        <tbody id="momentum-tbody">
+          <tr><td colspan="6" style="text-align:center;color:var(--text-dim);font-family:'Space Grotesk',sans-serif;">載入中…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── VAA DETAIL ── -->
+  <div>
+    <div class="section-label">VAA 攻擊型 · 資產評分</div>
+    <div class="card">
+      <div class="card-title">VAA 攻擊型</div>
+      <div class="card-sub">攻擊資產 vs 防禦資產</div>
+      <div class="vaa-grid">
+        <div>
+          <div class="vaa-sub-title vaa-attack">攻擊資產</div>
+          <div id="vaa-attack"></div>
+        </div>
+        <div>
+          <div class="vaa-sub-title vaa-defense">防禦資產</div>
+          <div id="vaa-defense"></div>
+        </div>
+      </div>
+      <div class="vaa-result-row" id="vaa-result-row">
+        <div>
+          <div class="vaa-result-label" id="vaa-result-label">—</div>
+          <div style="font-size:10px;color:var(--text-dim);margin-top:2px;" id="vaa-result-reason"></div>
+        </div>
+        <div class="vaa-result-pick" id="vaa-result-pick">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── PRINCIPLES ── -->
+  <div>
+    <div class="section-label">策略原理</div>
+    <div class="card">
+      <div class="card-title">動能投資原理</div>
+      <div class="card-sub" style="margin-bottom:14px;">Dual Momentum Framework</div>
+      <ul class="principle-list">
+        <li>
+          <span class="principle-num">01</span>
+          <span class="principle-text">資產進攻使用<strong style="color:var(--text)">相對動能</strong>，盡可能買進最強勢資產</span>
+        </li>
+        <li>
+          <span class="principle-num">02</span>
+          <span class="principle-text">資產防守使用<strong style="color:var(--text)">絕對動能</strong>，確保有最低上漲幅度</span>
+        </li>
+        <li>
+          <span class="principle-num">03</span>
+          <span class="principle-text">每月底換倉，比較 SPY vs BIL 決定進攻或防守</span>
+        </li>
+        <li>
+          <span class="principle-num">04</span>
+          <span class="principle-text">加速動能額外考慮 TLT；多考慮近1月 &lt; 0 → 轉現金</span>
+        </li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- ── NOTES ── -->
+  <div>
+    <div class="section-label">觀察記錄</div>
+    <div class="card">
+      <div class="card-title">本期備忘</div>
+      <div class="card-sub" style="margin-bottom:14px;">市場觀察 · 策略筆記</div>
+      <ul class="notes-list" id="notes-list"></ul>
+      <div class="note-add-row">
+        <input class="note-input" id="note-input" type="text" placeholder="新增備忘…" maxlength="120">
+        <button class="note-add-btn" id="note-add-btn">+ 新增</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RESOURCES ── -->
+  <div>
+    <div class="section-label">回測資源</div>
+    <div class="card">
+      <div class="card-title">報酬回測網站</div>
+      <div class="card-sub" style="margin-bottom:14px;">Backtesting Resources</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <a href="https://www.portfoliovisualizer.com" target="_blank" style="text-decoration:none;display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;transition:border-color 0.2s;">
+          <span style="font-size:12px;color:var(--text)">Portfolio Visualizer</span>
+          <span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--text-dim)">↗</span>
+        </a>
+        <a href="https://allocatesmartly.com" target="_blank" style="text-decoration:none;display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;transition:border-color 0.2s;">
+          <span style="font-size:12px;color:var(--text)">Allocate Smartly</span>
+          <span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--text-dim)">↗</span>
+        </a>
+        <a href="https://portfoliocharts.com" target="_blank" style="text-decoration:none;display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;transition:border-color 0.2s;">
+          <span style="font-size:12px;color:var(--text)">Portfolio Charts</span>
+          <span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--text-dim)">↗</span>
+        </a>
+        <a href="https://www.investing.com" target="_blank" style="text-decoration:none;display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;transition:border-color 0.2s;">
+          <span style="font-size:12px;color:var(--text)">investing.com</span>
+          <span style="font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--text-dim)">↗</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end main-grid -->
+
+<script>
+// ── Render helpers ─────────────────────────────────
+function fmtPct(v) {
+  if (v === null || v === undefined || Number.isNaN(v)) return '<span class="dim">—</span>';
+  const p = v * 100;
+  const s = (p >= 0 ? '+' : '') + p.toFixed(2) + '%';
+  return `<span class="${p >= 0 ? 'pos' : 'neg'}">${s}</span>`;
+}
+function fmtScore(v) {
+  if (v === null || v === undefined || Number.isNaN(v)) return '—';
+  return (v >= 0 ? '+' : '') + v.toFixed(2);
+}
+
+function renderStrategies(strategies) {
+  const grid = document.getElementById('strategies-grid');
+  grid.innerHTML = '';
+  if (!strategies || !strategies.length) {
+    grid.innerHTML = '<div class="data-msg">尚無策略資料</div>';
+    return;
+  }
+  strategies.forEach(s => {
+    const card = document.createElement('div');
+    card.className = 'strategy-card';
+    const assetDots = s.assets.map(a =>
+      `<span class="asset-dot${a === s.pick ? ' active' : ''}">${a}</span>`
+    ).join('');
+    card.innerHTML = `
+      <div class="name">${s.name.replace(' · ', '<br><span style="color:var(--accent2)">') + (s.name.includes(' · ') ? '</span>' : '')}</div>
+      <div class="pick-label">本期標的</div>
+      <div class="pick">${s.pick}</div>
+      <div class="asset-dots">${assetDots}</div>
+      <span class="mode-badge mode-${s.mode}">${s.modeLabel}</span>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function renderMomentum(momentum) {
+  const tbody = document.getElementById('momentum-tbody');
+  tbody.innerHTML = '';
+  document.getElementById('momentum-title').textContent = momentum.title;
+  document.getElementById('momentum-sub').textContent = momentum.subtitle;
+
+  const scores = momentum.rows.map(r => r.score).filter(v => v !== null);
+  const maxAbs = scores.length ? Math.max(...scores.map(Math.abs)) : 1;
+
+  momentum.rows.forEach(d => {
+    const scorePct = (d.score ?? 0) * 100;
+    const barWidth = maxAbs ? Math.round((Math.abs(d.score ?? 0) / maxAbs) * 60) : 0;
+    const scoreTxt = d.score === null
+      ? '<span class="dim">—</span>'
+      : `<span class="score-val ${d.winner ? 'pos' : (d.score >= 0 ? '' : 'neg')}" style="position:relative;z-index:1;">${(scorePct >= 0 ? '+' : '') + scorePct.toFixed(2)}%</span>`;
+    tbody.innerHTML += `
+      <tr class="${d.winner ? 'winner' : ''}">
+        <td>${d.ticker}${d.winner ? ' ★' : ''}</td>
+        <td>${fmtPct(d.m1)}</td>
+        <td>${fmtPct(d.m3)}</td>
+        <td>${fmtPct(d.m6)}</td>
+        <td>${fmtPct(d.m12)}</td>
+        <td style="position:relative;min-width:90px;">
+          <div class="score-bar-bg" style="width:${barWidth}px;right:8px;"></div>
+          ${scoreTxt}
+        </td>
+      </tr>`;
+  });
+}
+
+function renderVaa(vaa) {
+  const atkEl = document.getElementById('vaa-attack');
+  const defEl = document.getElementById('vaa-defense');
+  atkEl.innerHTML = '';
+  defEl.innerHTML = '';
+  if (!vaa) {
+    atkEl.innerHTML = '<div class="dim" style="font-size:12px;padding:7px 0;">—</div>';
+    defEl.innerHTML = '<div class="dim" style="font-size:12px;padding:7px 0;">—</div>';
+    document.getElementById('vaa-result-label').textContent = '資料不足';
+    document.getElementById('vaa-result-reason').textContent = '';
+    document.getElementById('vaa-result-pick').textContent = '—';
+    return;
+  }
+  const renderList = (items, container) => {
+    items.forEach(item => {
+      container.innerHTML += `
+        <div class="vaa-item">
+          <span class="vaa-ticker ${item.winner ? 'winner' : ''}">${item.ticker}${item.winner ? ' ★' : ''}</span>
+          <span class="vaa-score ${item.score >= 0 ? 'pos' : 'neg'}">${fmtScore(item.score)}</span>
+        </div>`;
+    });
+  };
+  renderList(vaa.attack, atkEl);
+  renderList(vaa.defense, defEl);
+  document.getElementById('vaa-result-label').textContent = vaa.pickLabel;
+  document.getElementById('vaa-result-reason').textContent = vaa.pickReason;
+  document.getElementById('vaa-result-pick').textContent = vaa.pick;
+}
+
+function setBadge(text, state) {
+  const el = document.getElementById('update-badge');
+  el.textContent = text;
+  el.classList.remove('stale', 'error');
+  if (state) el.classList.add(state);
+}
+
+function daysSince(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return Infinity;
+  return Math.floor((Date.now() - d.getTime()) / 86400000);
+}
+
+function renderError(msg) {
+  const grid = document.getElementById('strategies-grid');
+  grid.innerHTML = `<div class="data-msg error">${msg}<br><span style="font-size:11px;color:var(--text-dim);">請按右上角「↻ 手動更新」觸發 GitHub Actions。</span></div>`;
+  document.getElementById('momentum-tbody').innerHTML =
+    '<tr><td colspan="6" style="text-align:center;color:var(--text-dim);font-family:\'Space Grotesk\',sans-serif;">—</td></tr>';
+  renderVaa(null);
+}
+
+async function loadSignals() {
+  try {
+    const resp = await fetch('signals.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+
+    renderStrategies(data.strategies);
+    renderMomentum(data.momentum);
+    renderVaa(data.vaa);
+
+    const age = daysSince(data.updated);
+    const state = age > 40 ? 'stale' : null;
+    setBadge(`updated ${data.updated}`, state);
+  } catch (e) {
+    console.warn('load signals failed:', e);
+    setBadge('資料尚未產生', 'error');
+    renderError('尚未產生資料（signals.json 不存在或無法讀取）');
+  }
+}
+
+loadSignals();
+
+// ── NOTES with localStorage persistence
+const DEFAULT_NOTES = [
+  { text: 'VAA 攻擊型出現防禦資產，但雙動能依舊以 VOO/VXUS 為主', date: '2026-03-01' },
+  { text: '眼睛閉著乖乖做多，全力看多中，狂飆狀態', date: '2026-03-01' },
+  { text: '右方所有標的近一個月報酬全是正的，有可能頭部已到', date: '2026-03-01' },
+  { text: '上個月大修正後彈起又往下，接近五月底或許是新機會', date: '2026-03-01' },
+  { text: '資料來源改用 Python + yfinance 自動更新', date: '2026-03-01' },
+];
+
+function loadNotes() {
+  try {
+    const saved = localStorage.getItem('usdn_notes');
+    return saved ? JSON.parse(saved) : DEFAULT_NOTES;
+  } catch { return DEFAULT_NOTES; }
+}
+function saveNotes(notes) {
+  localStorage.setItem('usdn_notes', JSON.stringify(notes));
+}
+
+let showHistory = false;
+
+function renderNotes() {
+  const notes = loadNotes();
+  const list = document.getElementById('notes-list');
+  list.innerHTML = '';
+
+  // Group by YYYY-MM
+  const groups = {};
+  notes.forEach((note, i) => {
+    const month = (note.date || '').slice(0, 7) || '未知日期';
+    if (!groups[month]) groups[month] = [];
+    groups[month].push({ ...note, originalIndex: i });
+  });
+
+  const sortedMonths = Object.keys(groups).sort((a, b) => b.localeCompare(a));
+  const latestMonth = sortedMonths[0];
+
+  sortedMonths.forEach((month, gIdx) => {
+    const isLatest = month === latestMonth;
+    const shouldShow = isLatest || showHistory;
+    if (!shouldShow) return;
+
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'note-month-group';
+
+    // header (collapsible)
+    const header = document.createElement('div');
+    header.className = 'note-month-header';
+    const [y, m] = month.split('-');
+    const label = y && m ? `${y} 年 ${parseInt(m)} 月` : month;
+    header.innerHTML = `
+      <span class="note-month-label">${label}${isLatest ? ' · 本期' : ''}</span>
+      <span class="note-month-toggle open">›</span>
+    `;
+    groupDiv.appendChild(header);
+
+    // body
+    const body = document.createElement('div');
+    body.className = 'note-month-body';
+
+    const ul = document.createElement('ul');
+    ul.className = 'notes-list';
+
+    groups[month].forEach(note => {
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <span class="note-text">${note.text}</span>
+        <button class="note-delete" title="刪除" data-index="${note.originalIndex}">×</button>
+      `;
+      ul.appendChild(li);
+    });
+    body.appendChild(ul);
+    body.style.maxHeight = body.scrollHeight + 200 + 'px';
+    groupDiv.appendChild(body);
+    list.appendChild(groupDiv);
+
+    // toggle collapse
+    header.addEventListener('click', () => {
+      const toggle = header.querySelector('.note-month-toggle');
+      if (body.classList.contains('collapsed')) {
+        body.classList.remove('collapsed');
+        body.style.maxHeight = body.scrollHeight + 200 + 'px';
+        toggle.classList.add('open');
+      } else {
+        body.style.maxHeight = body.scrollHeight + 'px';
+        requestAnimationFrame(() => { body.classList.add('collapsed'); });
+        toggle.classList.remove('open');
+      }
+    });
+  });
+
+  // history toggle button
+  const histBtn = document.createElement('button');
+  histBtn.className = 'notes-history-btn';
+  const histCount = sortedMonths.length - 1;
+  if (histCount > 0) {
+    histBtn.textContent = showHistory
+      ? '▲ 隱藏歷史記錄'
+      : `▾ 查看歷史記錄（${histCount} 個月）`;
+    histBtn.addEventListener('click', () => {
+      showHistory = !showHistory;
+      renderNotes();
+    });
+    list.appendChild(histBtn);
+  }
+
+  // delete handlers
+  list.querySelectorAll('.note-delete').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const notes = loadNotes();
+      notes.splice(parseInt(btn.dataset.index), 1);
+      saveNotes(notes);
+      renderNotes();
+    });
+  });
+}
+
+function addNote() {
+  const input = document.getElementById('note-input');
+  const text = input.value.trim();
+  if (!text) return;
+  const notes = loadNotes();
+  const today = new Date().toISOString().slice(0, 10);
+  notes.unshift({ text, date: today });
+  saveNotes(notes);
+  input.value = '';
+  renderNotes();
+  // flash feedback
+  input.style.borderColor = 'var(--accent)';
+  setTimeout(() => input.style.borderColor = '', 600);
+}
+
+document.getElementById('note-add-btn').addEventListener('click', addNote);
+document.getElementById('note-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addNote();
+});
+
+renderNotes();
+
+// hover effect on resource links
+document.querySelectorAll('a[href]').forEach(a => {
+  a.addEventListener('mouseenter', () => a.style.borderColor = 'var(--border2)');
+  a.addEventListener('mouseleave', () => a.style.borderColor = 'var(--border)');
+});
+</script>
+</body>
+</html>
