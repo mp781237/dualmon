@@ -1,5 +1,5 @@
 {
-  "updated": "2026-05-03",
+  "updated": "2026-05-02",
   "strategies": [
     {
       "id": "S1",
@@ -30,15 +30,15 @@
     {
       "id": "S3",
       "name": "加速雙動能",
-      "pick": "VSS",
+      "pick": "VOO",
       "assets": [
         "VOO",
         "VSS",
         "TLT",
         "BIL"
       ],
-      "mode": "intl",
-      "modeLabel": "進攻 +8.60%"
+      "mode": "attack",
+      "modeLabel": "進攻 +3.57%"
     },
     {
       "id": "S4",
@@ -51,20 +51,20 @@
         "BIL"
       ],
       "mode": "attack",
-      "modeLabel": "進攻 +9.87%"
+      "modeLabel": "進攻 +6.95%"
     },
     {
       "id": "S5",
       "name": "VAA 攻擊型",
-      "pick": "VOO",
+      "pick": "BIL",
       "assets": [
         "VOO",
         "VXUS",
         "VWO",
         "BND"
       ],
-      "mode": "attack",
-      "modeLabel": "攻擊模式"
+      "mode": "defense",
+      "modeLabel": "防禦模式"
     }
   ],
   "momentum": {
@@ -73,47 +73,47 @@
     "rows": [
       {
         "ticker": "VOO",
-        "m1": 0.105481,
-        "m3": 0.041566,
-        "m6": 0.059806,
-        "m12": 0.31145,
-        "score": 0.068951,
+        "m1": 0.002937,
+        "m3": 0.049886,
+        "m6": 0.05428,
+        "m12": 0.222903,
+        "score": 0.035701,
         "winner": false
       },
       {
         "ticker": "QQQ",
-        "m1": 0.156901,
-        "m3": 0.075115,
-        "m6": 0.064179,
-        "m12": 0.411177,
-        "score": 0.098732,
+        "m1": 0.0096,
+        "m3": 0.110096,
+        "m6": 0.088656,
+        "m12": 0.298665,
+        "score": 0.06945,
         "winner": true
       },
       {
         "ticker": "VSS",
-        "m1": 0.084368,
-        "m3": 0.036656,
-        "m6": 0.136971,
-        "m12": 0.359002,
-        "score": 0.085998,
+        "m1": -0.00234,
+        "m3": -0.014558,
+        "m6": 0.097106,
+        "m12": 0.235179,
+        "score": 0.026736,
         "winner": false
       },
       {
         "ticker": "TLT",
-        "m1": -0.008397,
-        "m3": -0.006337,
-        "m6": -0.030454,
-        "m12": 0.000393,
-        "score": -0.015063,
+        "m1": -0.000117,
+        "m3": -0.057366,
+        "m6": -0.050992,
+        "m12": -0.007765,
+        "score": -0.036158,
         "winner": false
       },
       {
         "ticker": "BIL",
-        "m1": 0.002889,
-        "m3": 0.008461,
-        "m6": 0.01775,
-        "m12": 0.039378,
-        "score": 0.0097,
+        "m1": -0.002619,
+        "m3": -0.002401,
+        "m6": -0.003489,
+        "m12": -0.003706,
+        "score": -0.002836,
         "winner": false
       }
     ]
@@ -122,49 +122,49 @@
     "attack": [
       {
         "ticker": "VOO",
-        "score": 1.8631,
-        "winner": true
+        "score": 0.5662,
+        "winner": false
       },
       {
         "ticker": "VXUS",
-        "score": 1.7122,
+        "score": 0.4007,
         "winner": false
       },
       {
         "ticker": "VWO",
-        "score": 1.7826,
+        "score": 0.5013,
         "winner": false
       },
       {
         "ticker": "BND",
-        "score": 0.0672,
+        "score": -0.149,
         "winner": false
       }
     ],
     "defense": [
       {
         "ticker": "LQD",
-        "score": 0.0724,
+        "score": -0.1885,
         "winner": false
       },
       {
         "ticker": "IEF",
-        "score": 0.0054,
+        "score": -0.2178,
         "winner": false
       },
       {
         "ticker": "SHY",
-        "score": 0.0867,
+        "score": -0.103,
         "winner": false
       },
       {
         "ticker": "BIL",
-        "score": 0.1434,
-        "winner": false
+        "score": -0.0517,
+        "winner": true
       }
     ],
-    "pickLabel": "攻擊模式 · 最強標的",
-    "pickReason": "ALL 攻擊資產得分 > 0",
-    "pick": "VOO"
+    "pickLabel": "防禦模式 · 最強標的",
+    "pickReason": "攻擊資產有負值，切防禦",
+    "pick": "BIL"
   }
 }

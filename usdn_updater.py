@@ -1,7 +1,7 @@
 """
 動能資產配置自動更新腳本 (usdn_updater.py)
 ─────────────────────────────────────────
-使用 yfinance 抓取 ETF 月度收盤價，計算五大策略訊號，並輸出：
+使用 yfinance 抓取 ETF 月度收盤價（日線 resample 到月底），計算五大策略訊號，並輸出：
   1. signals.json — 供 動能資產配置.html 儀表板讀取
   2. usdn.xlsx    — 若存在則同步股價分頁（可選）
 
@@ -9,7 +9,8 @@
     pip install yfinance openpyxl
     python usdn_updater.py
 
-股價來源：yfinance close (non-adjusted)
+股價來源：yfinance adjusted close（含股息再投資與分割調整，近似 total return）
+資料窗口：上月底前 N 個完成月（不含當月 partial bar，避免 1m 報酬被噪音污染）
 """
 
 import json
@@ -33,30 +34,44 @@ MONTHS_NEEDED = 13
 
 
 def fetch_monthly_closes(ticker: str, months: int = MONTHS_NEEDED) -> list[tuple]:
-    end = datetime.now()
-    start = end - timedelta(days=months * 35)
+    # end 設為本月 1 號（exclusive）→ 永遠只取「已收盤完成的月」
+    # 避開 yfinance interval=1mo 在月初跑時回傳 partial 當月 bar 造成 1m 報酬失真
+    end = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    start = end - timedelta(days=(months + 2) * 35)  # 多抓 2 個月當緩衝
 
     tk = yf.Ticker(ticker)
-    hist = tk.history(start=start.strftime("%Y-%m-%d"),
-                      end=end.strftime("%Y-%m-%d"),
-                      interval="1mo", auto_adjust=False)
+    # 用日線抓 + auto_adjust=True 取調整後 close（含股息與分割），再 resample 到月底
+    # 比 interval="1mo" 穩定（不受 yfinance 月線是否含 partial 行為差異影響）
+    # 不開 repair=True：那需要 scipy（+~100MB）；對主流 ETF 資料品質夠用
+    hist = tk.history(
+        start=start.strftime("%Y-%m-%d"),
+        end=end.strftime("%Y-%m-%d"),
+        interval="1d",
+        auto_adjust=True,
+        actions=True,
+    )
 
     if hist.empty:
-        print(f"  [警告] {ticker} 無法取得資料")
-        return []
+        raise RuntimeError(f"{ticker}: yfinance returned empty data")
 
-    results = []
-    for idx, row in hist.iterrows():
-        dt = idx.to_pydatetime().replace(tzinfo=None)
-        dt_first = dt.replace(day=1)
-        close = round(float(row["Close"]), 2)
-        results.append((dt_first, close))
+    if hist.index.tz is not None:
+        hist.index = hist.index.tz_localize(None)
 
+    # resample 到月底（"ME" = Month End），取每月最後一個交易日的 close
+    closes = hist["Close"].resample("ME").last().dropna().tail(months)
+
+    results = [(d.to_pydatetime().replace(day=1), float(c))
+               for d, c in closes.items()]
     results.sort(key=lambda x: x[0], reverse=True)
-    return results[:months]
+    return results
 
 
 def update_excel(wb, etf: str, data: list[tuple]):
+    # Excel 欄位佈局（保留給下游 OHLC 公式參考，目前 OHLC 全填 close）：
+    #   col 1 = 月份日期（每月 1 號）
+    #   col 2 = 月底 close
+    #   col 3-5 = open/high/low（沒抓 OHLC，全填 close 當 placeholder）
+    #   col 6-7 = 保留欄位
     if etf not in wb.sheetnames:
         print(f"  [略過] 工作表 '{etf}' 不存在")
         return
@@ -67,11 +82,10 @@ def update_excel(wb, etf: str, data: list[tuple]):
         r = i + 2
         ws.cell(row=r, column=1, value=date_val)
         ws.cell(row=r, column=2, value=close_val)
-        for c in (3, 4, 5, 6, 7):
-            if c in (3, 4, 5):
-                ws.cell(row=r, column=c, value=close_val)
-            else:
-                ws.cell(row=r, column=c, value="")
+        for c in (3, 4, 5):
+            ws.cell(row=r, column=c, value=close_val)
+        for c in (6, 7):
+            ws.cell(row=r, column=c, value="")
 
     for r in range(len(data) + 2, ws.max_row + 1):
         for c in range(1, 8):
@@ -95,8 +109,11 @@ def calc_returns(prices: list[float]) -> dict:
     result["12m"] = ret(p[0], p[12]) if len(p) > 12 else None
 
     if all(result.get(k) is not None for k in ["1m", "3m", "6m", "12m"]):
+        # VAA 13612W 公式（Keller & Keuning 2017）
         result["vaa"] = 12 * result["1m"] + 4 * result["3m"] + 2 * result["6m"] + result["12m"]
     if all(result.get(k) is not None for k in ["1m", "3m", "6m"]):
+        # 注意：這不是真正的「加速度」(d momentum / dt)，是 1m/3m/6m 動能的簡單平均
+        # 變數名 accel 為歷史命名，前端 subtitle 已誠實標示「分數 = avg(1m, 3m, 6m)」
         result["accel"] = (result["1m"] + result["3m"] + result["6m"]) / 3
 
     return result
@@ -157,10 +174,11 @@ def compute_signals(all_returns: dict) -> dict:
     # S3 加速雙動能
     voo_acc, vss_acc, tlt_1m = r("VOO", "accel"), r("VSS", "accel"), r("TLT", "1m")
     if voo_acc is not None and vss_acc is not None:
-        if voo_acc > vss_acc and voo_acc > 0:
-            pick, score = "VOO", voo_acc
-        elif vss_acc > voo_acc and vss_acc > 0:
-            pick, score = "VSS", vss_acc
+        # max() 取最大值，平手時取插入順序的第一個（VOO）
+        candidates = {"VOO": voo_acc, "VSS": vss_acc}
+        winner, top_score = max(candidates.items(), key=lambda kv: kv[1])
+        if top_score > 0:
+            pick, score = winner, top_score
         elif tlt_1m is not None and tlt_1m < 0:
             pick, score = "BIL", None
         else:
@@ -181,10 +199,10 @@ def compute_signals(all_returns: dict) -> dict:
     # S4 騷速雙動能
     qqq_acc = r("QQQ", "accel")
     if qqq_acc is not None and vss_acc is not None:
-        if qqq_acc > vss_acc and qqq_acc > 0:
-            pick, score = "QQQ", qqq_acc
-        elif vss_acc > qqq_acc and vss_acc > 0:
-            pick, score = "VSS", vss_acc
+        candidates = {"QQQ": qqq_acc, "VSS": vss_acc}
+        winner, top_score = max(candidates.items(), key=lambda kv: kv[1])
+        if top_score > 0:
+            pick, score = winner, top_score
         elif tlt_1m is not None and tlt_1m < 0:
             pick, score = "BIL", None
         else:
@@ -202,7 +220,7 @@ def compute_signals(all_returns: dict) -> dict:
             "mode": mode, "modeLabel": label,
         })
 
-    # S5 VAA 攻擊型
+    # S5 VAA 攻擊型（客製化版本：defensive universe 加 BIL，標準 Keller 2017 為 LQD/IEF/SHY 3 檔）
     atk = {"VOO": r("VOO", "vaa"), "VXUS": r("VXUS", "vaa"),
            "VWO": r("VWO", "vaa"), "BND": r("BND", "vaa")}
     defs = {"LQD": r("LQD", "vaa"), "IEF": r("IEF", "vaa"),
@@ -217,7 +235,9 @@ def compute_signals(all_returns: dict) -> dict:
             mode_label = "攻擊模式"
         else:
             valid_defs = {k: v for k, v in defs.items() if v is not None}
-            pick = max(valid_defs, key=valid_defs.get) if valid_defs else "BIL"
+            if not valid_defs:
+                raise RuntimeError("VAA defense universe missing data — cannot pick safely")
+            pick = max(valid_defs, key=valid_defs.get)
             pick_label = "防禦模式 · 最強標的"
             pick_reason = "攻擊資產有負值，切防禦"
             mode_label = "防禦模式"
@@ -268,22 +288,15 @@ def compute_signals(all_returns: dict) -> dict:
     }
 
 
-def write_signals_json(all_returns: dict) -> dict:
-    data = compute_signals(all_returns)
+def write_signals_json(data: dict) -> None:
     with open(JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     print(f"已儲存訊號至 {JSON_PATH}")
-    return data
 
 
-def print_signal(all_returns: dict):
-    def r(etf, key):
-        return all_returns.get(etf, {}).get(key)
-
+def print_signal(data: dict):
     def fmt_pct(v):
         return f"{v*100:+.2f}%" if v is not None else "N/A"
-
-    data = compute_signals(all_returns)
 
     print("\n" + "=" * 60)
     print("  動能資產配置 — 當月策略訊號")
@@ -320,41 +333,44 @@ def main():
     all_data = {}
     all_returns = {}
 
+    failed = []
     for etf in ETF_LIST:
         print(f"  抓取 {etf}...", end=" ", flush=True)
         try:
             data = fetch_monthly_closes(etf)
         except Exception as e:
             print(f"失敗 ({e})")
+            failed.append(etf)
             continue
-        if data:
-            all_data[etf] = data
-            prices = [d[1] for d in data]
-            all_returns[etf] = calc_returns(prices)
-            print(f"OK ({len(data)} 個月)")
-        else:
-            print("失敗")
+        all_data[etf] = data
+        prices = [d[1] for d in data]
+        all_returns[etf] = calc_returns(prices)
+        print(f"OK ({len(data)} 個月)")
 
-    if not all_returns:
-        print("\n[錯誤] 無任何 ETF 資料，退出")
+    # M4: fail-fast — 任何 ETF 抓不到就 abort，避免靜默產出 partial signals.json
+    if failed:
+        print(f"\n[錯誤] 以下 ETF 抓取失敗：{failed}")
         sys.exit(1)
 
-    # 1. 寫 JSON（主要輸出）
+    # 計算一次 signals 給 JSON 與 console 共用（O1：避免重複呼叫 compute_signals）
     print()
-    write_signals_json(all_returns)
+    data = compute_signals(all_returns)
+
+    # 1. 寫 JSON（主要輸出）
+    write_signals_json(data)
 
     # 2. 同步 Excel（可選）
     if XLSX_PATH.exists() and load_workbook is not None:
         print("\n更新 Excel 檔案...")
         wb = load_workbook(str(XLSX_PATH))
-        for etf, data in all_data.items():
-            update_excel(wb, etf, data)
-            print(f"  {etf} 已更新 ({len(data)} 行)")
+        for etf, etf_data in all_data.items():
+            update_excel(wb, etf, etf_data)
+            print(f"  {etf} 已更新 ({len(etf_data)} 行)")
         wb.save(str(XLSX_PATH))
         print(f"已儲存至 {XLSX_PATH}")
 
     # 3. 印訊號
-    print_signal(all_returns)
+    print_signal(data)
 
     print("\n完成！")
 
