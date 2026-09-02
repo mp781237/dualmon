@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-02",
+  "updated": "2026-09-02",
   "strategies": [
     {
       "id": "S1",
@@ -17,15 +17,15 @@
     {
       "id": "S2",
       "name": "原版雙動能 · 拉風增強版",
-      "pick": "VXUS",
+      "pick": "QQQ",
       "assets": [
         "QQQ",
         "VXUS",
         "BND",
         "BIL"
       ],
-      "mode": "intl",
-      "modeLabel": "外國股市"
+      "mode": "attack",
+      "modeLabel": "美國股市"
     },
     {
       "id": "S3",
@@ -38,7 +38,7 @@
         "BIL"
       ],
       "mode": "attack",
-      "modeLabel": "進攻 +4.27%"
+      "modeLabel": "進攻 +5.56%"
     },
     {
       "id": "S4",
@@ -51,7 +51,7 @@
         "BIL"
       ],
       "mode": "attack",
-      "modeLabel": "進攻 +2.49%"
+      "modeLabel": "進攻 +6.56%"
     },
     {
       "id": "S5",
@@ -73,47 +73,47 @@
     "rows": [
       {
         "ticker": "VOO",
-        "m1": -0.000233,
-        "m3": 0.042492,
-        "m6": 0.085825,
-        "m12": 0.195759,
-        "score": 0.042695,
-        "winner": true
-      },
-      {
-        "ticker": "QQQ",
-        "m1": -0.065739,
-        "m3": 0.031458,
-        "m6": 0.108937,
-        "m12": 0.223524,
-        "score": 0.024886,
+        "m1": 0.026564,
+        "m3": 0.016467,
+        "m6": 0.123818,
+        "m12": 0.202561,
+        "score": 0.055616,
         "winner": false
       },
       {
+        "ticker": "QQQ",
+        "m1": 0.041817,
+        "m3": -0.028121,
+        "m6": 0.183047,
+        "m12": 0.262644,
+        "score": 0.065581,
+        "winner": true
+      },
+      {
         "ticker": "VSS",
-        "m1": -0.024434,
-        "m3": -0.042673,
-        "m6": -0.007582,
-        "m12": 0.165299,
-        "score": -0.024897,
+        "m1": 0.063646,
+        "m3": -0.000148,
+        "m6": 0.005787,
+        "m12": 0.181235,
+        "score": 0.023095,
         "winner": false
       },
       {
         "ticker": "TLT",
-        "m1": -0.044738,
-        "m3": -0.028445,
-        "m6": -0.034602,
-        "m12": -0.010605,
-        "score": -0.035928,
+        "m1": 0.007324,
+        "m3": -0.026522,
+        "m6": -0.070597,
+        "m12": -0.003486,
+        "score": -0.029932,
         "winner": false
       },
       {
         "ticker": "BIL",
-        "m1": 0.003371,
-        "m3": 0.009298,
-        "m6": 0.017838,
-        "m12": 0.038058,
-        "score": 0.010169,
+        "m1": 0.002768,
+        "m3": 0.008889,
+        "m6": 0.017937,
+        "m12": 0.037086,
+        "score": 0.009865,
         "winner": false
       }
     ]
@@ -122,44 +122,44 @@
     "attack": [
       {
         "ticker": "VOO",
-        "score": 0.5346,
+        "score": 0.8348,
         "winner": false
       },
       {
         "ticker": "VXUS",
-        "score": 0.3725,
+        "score": 0.8184,
         "winner": false
       },
       {
         "ticker": "VWO",
-        "score": 0.0974,
+        "score": 0.7001,
         "winner": false
       },
       {
         "ticker": "BND",
-        "score": -0.1719,
+        "score": -0.0034,
         "winner": false
       }
     ],
     "defense": [
       {
         "ticker": "LQD",
-        "score": -0.3367,
+        "score": -0.064,
         "winner": false
       },
       {
         "ticker": "IEF",
-        "score": -0.2196,
+        "score": -0.0944,
         "winner": false
       },
       {
         "ticker": "SHY",
-        "score": 0.0721,
+        "score": 0.0634,
         "winner": false
       },
       {
         "ticker": "BIL",
-        "score": 0.1514,
+        "score": 0.1417,
         "winner": true
       }
     ],
